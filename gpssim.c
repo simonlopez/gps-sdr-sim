@@ -92,6 +92,8 @@ double ant_pat_db[37] = {
 
 int allocatedSat[MAX_SAT];
 
+int _USER_MOTION_SIZE = USER_MOTION_SIZE;
+
 /*! \brief Subtract two vectors of double
  *  \param[out] y Result of subtraction
  *  \param[in] x1 Minuend of subtracion
@@ -1355,7 +1357,7 @@ void computeCodePhase(channel_t *chan, range_t rho1, double dt)
  *  \param[[in] filename File name of the text input file
  *  \returns Number of user data motion records read, -1 on error
  */
-int readUserMotion(double xyz[USER_MOTION_SIZE][3], const char *filename)
+int readUserMotion(double xyz[][3], const char *filename)
 {
 	FILE *fp;
 	int numd;
@@ -1365,7 +1367,7 @@ int readUserMotion(double xyz[USER_MOTION_SIZE][3], const char *filename)
 	if (NULL==(fp=fopen(filename,"rt")))
 		return(-1);
 
-	for (numd=0; numd<USER_MOTION_SIZE; numd++)
+	for (numd=0; numd<_USER_MOTION_SIZE; numd++)
 	{
 		if (fgets(str, MAX_CHAR, fp)==NULL)
 			break;
@@ -1383,7 +1385,7 @@ int readUserMotion(double xyz[USER_MOTION_SIZE][3], const char *filename)
 	return (numd);
 }
 
-int readNmeaGGA(double xyz[USER_MOTION_SIZE][3], const char *filename)
+int readNmeaGGA(double xyz[][3], const char *filename)
 {
 	FILE *fp;
 	int numd = 0;
@@ -1454,7 +1456,7 @@ int readNmeaGGA(double xyz[USER_MOTION_SIZE][3], const char *filename)
 			// Update the number of track points
 			numd++;
 
-			if (numd>=USER_MOTION_SIZE)
+			if (numd>=_USER_MOTION_SIZE)
 				break;
 		}
 	}
@@ -1654,13 +1656,13 @@ void usage(void)
 		"  -l <location>    Lat,Lon,Hgt (static mode) e.g. 35.681298,139.766247,10.0\n"
 		"  -t <date,time>   Scenario start time YYYY/MM/DD,hh:mm:ss\n"
 		"  -T <date,time>   Overwrite TOC and TOE to scenario start time\n"
-		"  -d <duration>    Duration [sec] (dynamic mode max: %.0f, static mode max: %d)\n"
+		"  -d <duration>    Duration [sec] (static mode max: %d)\n"
 		"  -o <output>      I/Q sampling data file (default: gpssim.bin)\n"
 		"  -s <frequency>   Sampling frequency [Hz] (default: 2600000)\n"
 		"  -b <iq_bits>     I/Q data format [1/8/16] (default: 16)\n"
 		"  -i               Disable ionospheric delay for spacecraft scenario\n"
 		"  -v               Show details about simulated channels\n",
-		((double)USER_MOTION_SIZE) / 10.0, STATIC_MAX_DURATION);
+		STATIC_MAX_DURATION);
 
 	return;
 }
@@ -1694,7 +1696,6 @@ int main(int argc, char *argv[])
 	int iumd;
 	int numd;
 	char umfile[MAX_CHAR];
-	double xyz[USER_MOTION_SIZE][3];
 
 	int staticLocationMode = FALSE;
 	int nmeaGGA = FALSE;
@@ -1739,7 +1740,7 @@ int main(int argc, char *argv[])
 	data_format = SC16;
 	g0.week = -1; // Invalid start time
 	iduration = USER_MOTION_SIZE;
-	duration = (double)iduration/10.0; // Default duration
+        duration = (double)iduration/10.0; // Default duration
 	verb = FALSE;
 	ionoutc.enable = TRUE;
 
@@ -1825,6 +1826,15 @@ int main(int argc, char *argv[])
 			break;
 		case 'd':
 			duration = atof(optarg);
+                        if (duration<0.0)
+                        {
+                                printf("ERROR: Invalid duration.\n");
+                                exit(1);
+                        }
+                        if(duration>((double)USER_MOTION_SIZE/10.0))
+                        {
+                                _USER_MOTION_SIZE = (int)(duration*10.0);
+                        }
 			break;
 		case 'i':
 			ionoutc.enable = FALSE; // Disable ionospheric correction
@@ -1856,11 +1866,7 @@ int main(int argc, char *argv[])
 		llh[2] = 10.0;
 	}
 
-	if (duration<0.0 || (duration>((double)USER_MOTION_SIZE)/10.0 && !staticLocationMode) || (duration>STATIC_MAX_DURATION && staticLocationMode))
-	{
-		printf("ERROR: Invalid duration.\n");
-		exit(1);
-	}
+        double xyz[_USER_MOTION_SIZE][3];
 	iduration = (int)(duration*10.0 + 0.5);
 
 	// Buffer size	
